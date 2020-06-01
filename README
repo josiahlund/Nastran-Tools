@@ -1,0 +1,4 @@
+This repository contains tools, primarily written in Python 3, to aide in the pre- and post- processing of Nastran data files.
+
+Tools available accomplish:
+- HDF5 post-processing
