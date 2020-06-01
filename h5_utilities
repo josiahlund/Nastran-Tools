@@ -1,0 +1,66 @@
+import h5py
+import numpy as np
+import pandas as pd
+
+
+# This dictionary allows a shorthand referencing of the H5 result tables
+h5_dict = {'displacement_node': '/NASTRAN/RESULT/NODAL/DISPLACEMENT',
+           'force_bar': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/BAR'
+           'force_bush': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/BUSH'
+           'force_conrod': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/CONROD'
+           'force_elas': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/ELAS'
+           'force_grid': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/GRID_FORCE'
+           'force_rod': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/ROD'
+           'force_quad4': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/QUAD4'
+           'force_shear': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/SHEAR'
+           'force_tria3': '/NASTRAN/RESULT/ELEMENTALN/ELEMENT_FORCE/TRIA3'
+           'strain_bar': '/NASTRAN/RESULT/ELEMENTALN/STRAIN/BAR'
+           'strain_conrod': '/NASTRAN/RESULT/ELEMENTALN/STRAIN/CONROD'
+           'strain_quad4': '/NASTRAN/RESULT/ELEMENTALN/STRAIN/QUAD4'
+           'stress_bar': '/NASTRAN/RESULT/ELEMENTALN/STRESS/BAR'
+           'stress_bush': '/NASTRAN/RESULT/ELEMENTALN/STRESS/BUSH'
+           'stress_conrod': '/NASTRAN/RESULT/ELEMENTALN/STRESS/CONROD'
+           'stress_elas': '/NASTRAN/RESULT/ELEMENTALN/STRESS/ELAS'
+           'stress_rod': '/NASTRAN/RESULT/ELEMENTALN/STRESS/ROD'
+           'stress_quad4': '/NASTRAN/RESULT/ELEMENTALN/STRESS/QUAD4'
+           'stress_shear': '/NASTRAN/RESULT/ELEMENTALN/STRESS/SHEAR'
+           'stress_tria3': '/NASTRAN/RESULT/ELEMENTALN/STRESS/TRIA3'
+
+
+def h5_table_to_df(h5_file_path: str, table_path: str) -> pd.DataFrame:
+  """
+  Returns the specified hdf5 table, without any alterations. This is not typically desired
+  """
+  try:
+    df = pd.DataFrame(np.array(h5py.File(h5_file_path, 'r')[table_path]))
+  except KeyError:
+    print(f'The path "{table_path}" is not contained within the h5')
+    input('Press enter to terminate.')
+    exit(1)
+  return df
+
+
+def h5_table_to_df_by_subcase(h5_file_path: str, table_path: str) -> pd.DataFrame:
+  """
+  Returns the specified hdf5 table, multi-indexed by the subcase ID and entity (element or node) ID.
+  """
+  df = h5_table_to_df(h5_file_path=h5_file_path, table_path=table_path)
+  
+  domain_data = h5_table_to_df(h5_file_path=h5_file_path, table_path='/NASTRAN/RESULTS/DOMAIONS')
+  domain_id = domain_data['ID']
+  subcase = domain_data['SUBCASE']
+  subcase_dict = dict(zip(domain_id, subcase))
+  
+  df['SUBCASE_ID'] = df['DOMAIN_ID'].map(subcase_dict)
+  df.drop(columns='DOMAIN_ID', inplace=True)
+  entity_ID_name = df.columns[0]
+  if table_path == '/NASTRAN/RESULT/NODAL/GRID_FORCE':
+    df = df.set_index(["SUBCASE_ID", entity_ID_name, 'EID', 'ELNAME'])
+  else:
+    df = df.set_index(["SUBCASE_ID", entity_ID_name])
+  return df
+
+
+def pare_dataframe(df: pd.DataFrame, entity_set: set):
+  df = df.loc[df.index.get_level_values(1).isin(entity_list)]
+  return df
